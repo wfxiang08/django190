@@ -294,7 +294,7 @@ class AbstractUser(AbstractBaseUser, PermissionsMixin):
     """
     username = models.CharField(
         _('username'),
-        max_length=30,
+        max_length=100,
         unique=True,
         help_text=_('Required. 30 characters or fewer. Letters, digits and @/./+/-/_ only.'),
         validators=[
