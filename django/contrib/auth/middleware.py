@@ -1,3 +1,4 @@
+# -*- coding:utf-8 -*-
 from django.contrib import auth
 from django.contrib.auth import load_backend
 from django.contrib.auth.backends import RemoteUserBackend
@@ -6,8 +7,11 @@ from django.utils.functional import SimpleLazyObject
 
 
 def get_user(request):
+    # 如果没有cache, 则先设置cache
     if not hasattr(request, '_cached_user'):
         request._cached_user = auth.get_user(request)
+
+    # 然后返回cache
     return request._cached_user
 
 

@@ -1,3 +1,4 @@
+# -*- coding:utf-8 -*-
 from __future__ import unicode_literals
 
 import cgi
@@ -91,9 +92,13 @@ class WSGIRequest(http.HttpRequest):
         # stated in http://www.ietf.org/rfc/rfc2396.txt
         self.path = '%s/%s' % (script_name.rstrip('/'),
                                path_info.replace('/', '', 1))
+
+        # environ从和而来? 可以参考 gunicorn中的数据解析部分，包含了各种: Http Headers
         self.META = environ
+
         self.META['PATH_INFO'] = path_info
         self.META['SCRIPT_NAME'] = script_name
+
         self.method = environ['REQUEST_METHOD'].upper()
         _, content_params = cgi.parse_header(environ.get('CONTENT_TYPE', ''))
         if 'charset' in content_params:
@@ -115,6 +120,17 @@ class WSGIRequest(http.HttpRequest):
     def _get_scheme(self):
         return self.environ.get('wsgi.url_scheme')
 
+    # 注意: cached_property的用法: data-descriptor
+    #       http://pyzh.readthedocs.org/en/latest/Descriptor-HOW-TO-Guide.html
+    # 下面的代码的理解:
+    # 首先
+    #    0. func = def GET(self): pass
+    #    1. WSGIRequest.__dict__["GET"] = cached_property(func)
+    #       cached_property 模拟了一个func应该有的所有的方法和熟悉，并且实现了__get__
+    #    2. WSGIRequest的实力: request.GET 会访问 cached_property对象, 然后该对象会在__get__中读取 request.__dict__["GET"]或先调用func, 然后再返回 request.__dict__["GET"]
+    #    3. 似乎: request.__dict__["GET"] 创建之后， request.GET就不在走: data-descriptor这个流程了（优先级变化了)
+    # 这里要注意: GET/POST/COOKE等的调用都是有代价的，设计到数据的解析
+    #
     @cached_property
     def GET(self):
         # The WSGI spec says 'QUERY_STRING' may be absent.

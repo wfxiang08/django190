@@ -1,3 +1,4 @@
+# -*- coding:utf-8 -*-
 import copy
 import operator
 import sys
@@ -29,6 +30,7 @@ class cached_property(object):
         self.__doc__ = getattr(func, '__doc__')
         self.name = name or func.__name__
 
+    # data-descriptor(描述器)
     def __get__(self, instance, type=None):
         if instance is None:
             return self
@@ -196,12 +198,16 @@ empty = object()
 
 
 def new_method_proxy(func):
+    """
+    如果func为 getattr, 则最终转换成为: self.value ---> getattr(self._wrapped, value)
+    :param func:
+    :return:
+    """
     def inner(self, *args):
         if self._wrapped is empty:
             self._setup()
         return func(self._wrapped, *args)
     return inner
-
 
 class LazyObject(object):
     """
@@ -330,6 +336,16 @@ class SimpleLazyObject(LazyObject):
         self.__dict__['_setupfunc'] = func
         _super(SimpleLazyObject, self).__init__()
 
+    """
+        例如: request.user = SimpleLazyObject(lambda: get_user(request)) 是如何工作的呢?
+        1. 首先访问 request.user不触发任何动作, 直接返回 SimpleLazyObject()
+        2. 访问user时, self._wrapped就返回 user对象
+        3. request.user.username ---> request.user(SimpleLazyObject).username
+                                                                       |
+                                                                       |---> getattr(user(SimpleLazyObject)._wrapped, "username")
+
+        Lazy体现在:_setup在访问user的属性的时候才开始调用，如果不访问user的属性, 则get_user都不会被调用
+    """
     def _setup(self):
         self._wrapped = self._setupfunc()
 
