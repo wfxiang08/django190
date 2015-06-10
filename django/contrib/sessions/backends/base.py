@@ -1,3 +1,4 @@
+# -*- coding:utf-8 -*-
 from __future__ import unicode_literals
 
 import base64
@@ -180,6 +181,7 @@ class SessionBase(object):
         else:
             self.__session_key = None
 
+    # 原有版本的session_key, 现在改为只读；但是可以通过: _session_key 来进行读写；因此相关的Middleware等需要注意这个变化
     session_key = property(_get_session_key)
     _session_key = property(_get_session_key, _set_session_key)
 

@@ -1,7 +1,11 @@
+# -*- coding:utf-8 -*-
 from __future__ import unicode_literals
 
 import os
 from collections import OrderedDict
+import platform
+import subprocess
+import time
 
 from django.contrib.staticfiles.finders import get_finders
 from django.contrib.staticfiles.storage import staticfiles_storage
@@ -10,6 +14,21 @@ from django.core.management.base import BaseCommand, CommandError
 from django.core.management.color import no_style
 from django.utils.encoding import smart_text
 from django.utils.six.moves import input
+
+is_mac_os = platform.system() == "Darwin"
+
+# Django必须是通过pip安装，不能采用egg
+md5_command = "md5" if is_mac_os else "md5sum"
+def get_normalized_md5(source_path):
+    md5 = subprocess.check_output("%s %s" % (md5_command, source_path), shell=True)
+    if is_mac_os:
+        idx = md5.find("=")
+        if idx != -1:
+            md5 = md5[(idx + 2):]
+    else:
+        md5 = md5[:32]
+    return md5
+
 
 
 class Command(BaseCommand):
@@ -217,6 +236,7 @@ class Command(BaseCommand):
     def delete_file(self, path, prefixed_path, source_storage):
         """
         Checks if the target file should be deleted if it already exists
+        也就是如果返回True, 则表示目标文件需要被修改，被删除或被覆盖
         """
         if self.storage.exists(prefixed_path):
             try:
@@ -240,8 +260,7 @@ class Command(BaseCommand):
                         full_path = None
                     # Skip the file if the source file is younger
                     # Avoid sub-second precision (see #14665, #19540)
-                    if (target_last_modified.replace(microsecond=0)
-                            >= source_last_modified.replace(microsecond=0)):
+                    if (target_last_modified.replace(microsecond=0) >= source_last_modified.replace(microsecond=0)):
                         if not ((self.symlink and full_path
                                  and not os.path.islink(full_path)) or
                                 (not self.symlink and full_path
@@ -250,6 +269,23 @@ class Command(BaseCommand):
                                 self.unmodified_files.append(prefixed_path)
                             self.log("Skipping '%s' (not modified)" % path)
                             return False
+                    else:
+                        ## 检查md5 is_mac_os
+                        if full_path:
+                            source_path = source_storage.path(path)
+                            md51 = get_normalized_md5(source_path)
+                            md52 = get_normalized_md5(full_path)
+
+                            if md51 == md52:
+                                # 如何touch目标文件的修改时间(避免下次再次调用md5)
+                                t = time.mktime(source_last_modified.timetuple()) + source_last_modified.microsecond / 1E6 + 0.1
+                                os.utime(full_path, (t, t))
+
+                                # git的分支切换可能会修改文件的时间
+                                self.log(u"Skipping '%s' (not modified)" % path)
+                                self.unmodified_files.add(prefixed_path)
+                                return False
+
             # Then delete the existing file if really needed
             if self.dry_run:
                 self.log("Pretending to delete '%s'" % path)
